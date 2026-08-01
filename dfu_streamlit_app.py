@@ -4,7 +4,6 @@ import cv2
 from PIL import Image
 import io
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgenarias import canvas if False else reportlab_pdf_canvas = None # placeholder
 from reportlab.pdfgen import canvas
 
 # ==========================================
