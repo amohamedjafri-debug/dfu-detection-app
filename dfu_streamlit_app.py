@@ -2,14 +2,15 @@ import streamlit as st
 import numpy as np
 import cv2
 from PIL import Image
+import tensorflow as tf
 
 # ==========================================
-# 1. PAGE CONFIGURATION (Video Style)
+# 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
     page_title="DFU Detection AI",
     page_icon="🩺",
-    layout="centered" # Center-la azhaga vara
+    layout="centered"
 )
 
 # ==========================================
@@ -40,7 +41,6 @@ def build_model():
 @st.cache_resource
 def load_trained_model():
     model = build_model()
-    # Weights mattum load panrom - No JSON Error!
     model.load_weights("dfu_efficientnetb0_model.keras") 
     return model
 
@@ -103,42 +103,34 @@ except Exception as e:
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Memory-la direct-a load panrom (No PermissionError!)
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
     st.image(image, caption='Uploaded Image', use_container_width=True)
     
     if st.button("Run AI Analysis", type="primary"):
         with st.spinner("Analyzing..."):
-            # CNN Prep
             img_resized = image.resize((224, 224))
             img_array_batch = np.expand_dims(tf.keras.preprocessing.image.img_to_array(img_resized), axis=0)
             
-            # Predict
             prob = model.predict(img_array_batch)[0][0]
             
             st.divider()
             if prob > 0.5:
                 st.error(f"### ⚠️ ULCER DETECTED (AI Confidence: {prob*100:.2f}%)")
                 
-                # Analysis
                 img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
                 
-                # Metrics (Video style)
                 col1, col2 = st.columns(2)
                 col1.metric("Estimated Area", f"{area:.2f} cm²")
                 col2.metric("Severity Level", severity)
                 
-                # Grad-CAM Overlay
                 heatmap = make_gradcam_heatmap(img_array_batch, model)
                 
-                # Tabs (Video style)
                 st.subheader("Visual Analysis")
                 t1, t2, t3 = st.tabs(["AI Focus (Grad-CAM)", "Wound Boundary", "Wound Mask"])
                 
                 with t1:
                     if heatmap is not None:
-                        # Overlay
                         h_resized = cv2.resize(heatmap, (img_resized.size[0], img_resized.size[1]))
                         h_colored = cv2.cvtColor(cv2.applyColorMap(np.uint8(255 * h_resized), cv2.COLORMAP_JET), cv2.COLOR_BGR2RGB)
                         overlay = cv2.addWeighted(np.array(img_resized), 0.6, h_colored, 0.4, 0)
