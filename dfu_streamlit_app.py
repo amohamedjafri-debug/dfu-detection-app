@@ -10,7 +10,7 @@ from reportlab.pdfgen import canvas
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="DFU-Vision AI",
+    page_title="DFU Detection AI",
     page_icon="🩺",
     layout="centered"
 )
