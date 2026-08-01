@@ -37,19 +37,27 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     return img_with_contours, mask, area, severity
 
 # ==========================================
-# 3. UI & APP LOGIC
+# 3. UI & APP LOGIC (Real-time Camera + Upload)
 # ==========================================
 st.title("🩺 Diabetic Foot Ulcer Detection AI")
-st.write("Upload or capture a clinical foot image for automated lesion tracking and boundary segmentation.")
+st.write("Use your phone camera to capture a live clinical image or upload from your gallery for instant analysis.")
 
-# Gallery Upload (Most stable for mobile & desktop)
-uploaded_file = st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
+# Option Selector: Live Camera or Gallery Upload
+app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Upload from Gallery"])
+
+uploaded_file = None
+
+if app_mode == "📷 Live Phone Camera":
+    # Phone-la direct-ah camera open aagum
+    uploaded_file = st.camera_input("Take a picture of the foot ulcer")
+else:
+    uploaded_file = st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
     
-    st.image(image, caption='Uploaded Clinical Image', use_container_width=True)
+    st.image(image, caption='Selected Clinical Image', use_container_width=True)
     
     with st.spinner("Processing image modules & calculating wound area..."):
         img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
