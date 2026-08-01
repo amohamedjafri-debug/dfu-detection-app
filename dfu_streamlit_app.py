@@ -10,7 +10,7 @@ from reportlab.pdfgen import canvas
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="DFU Detection AI",
+    page_title="DFU-Vision AI",
     page_icon="🩺",
     layout="centered"
 )
@@ -49,10 +49,10 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
     
     # Title & Header
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, height - 50, "Clinical Diabetic Foot Ulcer (DFU) Assessment Report")
+    c.drawString(50, height - 50, "DFU-Vision AI: Clinical Assessment Report")
     
     c.setFont("Helvetica", 12)
-    c.drawString(50, height - 80, f"Patient Name: {patient_name}")
+    c.drawString(50, height - 80, f"Patient Name / ID: {patient_name}")
     c.drawString(50, height - 100, f"Assessment Date: Live AI Analysis")
     
     # Divider line
@@ -78,7 +78,7 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
         y_pos -= 22
         
     c.setFont("Helvetica-Oblique", 9)
-    c.drawString(50, 50, "Generated via Smart AI-Driven Plantar Pressure & Ulcer Analysis Platform")
+    c.drawString(50, 50, "Generated via DFU-Vision AI: Automated Multi-Module Morphometric Analysis Suite")
     
     c.save()
     buffer.seek(0)
@@ -87,19 +87,25 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
 # ==========================================
 # 4. STREAMLIT UI LAYOUT
 # ==========================================
-st.title("🩺 Advanced DFU Detection & Clinical Suite")
-st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate risk factors, and generate formal PDF reports.")
+st.title("🩺 DFU-Vision AI")
+st.markdown("**Automated Multi-Module Diabetic Foot Ulcer Detection & Morphometric Analysis Suite**")
+st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate updated clinical history, and generate formal PDF reports.")
 
-# Sidebar for Patient Metadata & Risk Assessment
+# Sidebar for Patient Metadata & History
 st.sidebar.header("📋 Patient Clinical Metadata")
 patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
 diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
+
+# New history inputs added here
+has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
+hba1c_high = st.sidebar.checkbox("High Blood Sugar / HbA1c > 8.0%")
+
 has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
 is_smoker = st.sidebar.checkbox("History of Smoking")
-previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional for Healing Progress)", min_value=0.0, value=0.0)
+previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional)", min_value=0.0, value=0.0)
 
-# Calculate Risk Score based on inputs
-risk_score = min(10, int(diabetes_duration / 3) + (3 if has_neuropathy else 0) + (2 if is_smoker else 0))
+# Calculate Risk Score including the 2 new parameters
+risk_score = min(10, int(diabetes_duration / 3) + (3 if has_previous_ulcer else 0) + (2 if hba1c_high else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
 
 # Input Mode: Live Camera or Gallery
 app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Upload from Gallery"])
@@ -147,7 +153,7 @@ if uploaded_file is not None:
                 "Consult a vascular specialist or podiatrist for clinical evaluation."
             ]
             if severity == "Severe" or risk_score >= 7:
-                recs.insert(0, "URGENT: High risk profile detected. Immediate clinical intervention required.")
+                recs.insert(0, "URGENT: High risk profile detected based on clinical history and lesion size. Immediate intervention required.")
                 
             st.divider()
             st.subheader("📄 Download Official Clinical Report")
