@@ -2,12 +2,15 @@ import streamlit as st
 import numpy as np
 import cv2
 from PIL import Image
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 # ==========================================
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="DFU Detection AI",
+    page_title="Smart AI DFU Analysis System",
     page_icon="🩺",
     layout="centered"
 )
@@ -37,21 +40,70 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     return img_with_contours, mask, area, severity
 
 # ==========================================
-# 3. UI & APP LOGIC (Real-time Camera + Upload)
+# 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
-st.title("🩺 Diabetic Foot Ulcer Detection AI")
-st.write("Use your phone camera to capture a live clinical image or upload from your gallery for instant analysis.")
+def generate_pdf_report(patient_name, area, severity, risk_score, recommendations):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    
+    # Title & Header
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(50, height - 50, "Clinical Diabetic Foot Ulcer (DFU) Assessment Report")
+    
+    c.setFont("Helvetica", 12)
+    c.drawString(50, height - 80, f"Patient Name: {patient_name}")
+    c.drawString(50, height - 100, f"Assessment Date: Live AI Analysis")
+    
+    # Divider line
+    c.line(50, height - 115, width - 50, height - 115)
+    
+    # Metrics Section
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 145, "Wound Measurements & Classification:")
+    
+    c.setFont("Helvetica", 12)
+    c.drawString(70, height - 170, f"- Calculated Wound Surface Area: {area:.2f} cm²")
+    c.drawString(70, height - 195, f"- Estimated Clinical Severity: {severity}")
+    c.drawString(70, height - 220, f"- Combined Clinical Risk Score: {risk_score} / 10")
+    
+    # Recommendations Section
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 260, "Clinical Recommendations & Next Steps:")
+    
+    c.setFont("Helvetica", 11)
+    y_pos = height - 285
+    for rec in recommendations:
+        c.drawString(70, y_pos, f"• {rec}")
+        y_pos -= 22
+        
+    c.setFont("Helvetica-Oblique", 9)
+    c.drawString(50, 50, "Generated via Smart AI-Driven Plantar Pressure & Ulcer Analysis Platform")
+    
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-# Option Selector: Live Camera or Gallery Upload
+# ==========================================
+# 4. STREAMLIT UI LAYOUT
+# ==========================================
+st.title("🩺 Advanced DFU Detection & Clinical Suite")
+st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate risk factors, and generate formal PDF reports.")
+
+# Sidebar for Patient Metadata & Risk Assessment
+st.sidebar.header("📋 Patient Clinical Metadata")
+patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
+diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
+has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
+is_smoker = st.sidebar.checkbox("History of Smoking")
+previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional for Healing Progress)", min_value=0.0, value=0.0)
+
+# Calculate Risk Score based on inputs
+risk_score = min(10, int(diabetes_duration / 3) + (3 if has_neuropathy else 0) + (2 if is_smoker else 0))
+
+# Input Mode: Live Camera or Gallery
 app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Upload from Gallery"])
-
-uploaded_file = None
-
-if app_mode == "📷 Live Phone Camera":
-    # Phone-la direct-ah camera open aagum
-    uploaded_file = st.camera_input("Take a picture of the foot ulcer")
-else:
-    uploaded_file = st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.camera_input("Take a picture of the foot ulcer") if app_mode == "📷 Live Phone Camera" else st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
@@ -59,24 +111,54 @@ if uploaded_file is not None:
     
     st.image(image, caption='Selected Clinical Image', use_container_width=True)
     
-    with st.spinner("Processing image modules & calculating wound area..."):
+    with st.spinner("Executing multi-module clinical analysis pipeline..."):
         img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
         
         st.divider()
         if area > 0.05:
             st.error("### ⚠️ CLINICAL FOOT ULCER DETECTED")
             
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             col1.metric("Wound Surface Area", f"{area:.2f} cm²")
             col2.metric("Estimated Severity", severity)
+            col3.metric("Clinical Risk Score", f"{risk_score}/10")
+            
+            # Healing progress tracking if previous area exists
+            if previous_area > 0:
+                diff = previous_area - area
+                pct = (diff / previous_area) * 100
+                if diff > 0:
+                    st.success(f"📈 Healing Progress: Wound area decreased by {pct:.1f}% ({diff:.2f} cm² reduction) compared to previous visit.")
+                else:
+                    st.warning(f"📉 Healing Progress: Wound area increased by {abs(pct):.1f}% compared to previous visit.")
             
             st.subheader("Visual Analysis Modules")
             t1, t2 = st.tabs(["Wound Boundary Tracking", "Binary Wound Mask"])
-            
             with t1:
                 st.image(img_c, use_container_width=True, caption="Phase 2: Boundary Contour Mapping")
             with t2:
                 st.image(mask, use_container_width=True, caption="Phase 3: Pixel-level Mask Segmentation")
+                
+            # Recommendations logic
+            recs = [
+                "Offload pressure immediately using specialized therapeutic footwear.",
+                "Maintain strict glycemic control and monitor daily blood glucose levels.",
+                "Clean wound area regularly with sterile saline and apply prescribed dressings.",
+                "Consult a vascular specialist or podiatrist for clinical evaluation."
+            ]
+            if severity == "Severe" or risk_score >= 7:
+                recs.insert(0, "URGENT: High risk profile detected. Immediate clinical intervention required.")
+                
+            st.divider()
+            st.subheader("📄 Download Official Clinical Report")
+            pdf_buffer = generate_pdf_report(patient_name, area, severity, risk_score, recs)
+            
+            st.download_button(
+                label="📥 Download PDF Assessment Report",
+                data=pdf_buffer,
+                file_name=f"{patient_name}_DFU_Report.pdf",
+                mime="application/pdf"
+            )
         else:
             st.success("### ✅ NORMAL / NO ULCER DETECTED")
             st.info("The selected region shows no prominent clinical lesion patterns based on HSV color thresholding.")
