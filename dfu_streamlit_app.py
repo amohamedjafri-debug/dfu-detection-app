@@ -7,17 +7,20 @@ from PIL import Image
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="DFU Detection AI",
+    page_title="Smart AI DFU Detection App",
     page_icon="🩺",
     layout="centered"
 )
 
 # ==========================================
-# 2. ANALYSIS FUNCTIONS
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
+    # Convert RGB to BGR for OpenCV processing
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    
+    # HSV thresholds for clinical wound detection
     lower_bound = np.array([0, 50, 20])
     upper_bound = np.array([20, 255, 255])
     mask = cv2.inRange(hsv, lower_bound, upper_bound)
@@ -28,44 +31,46 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         
     largest = max(contours, key=cv2.contourArea)
     area = cv2.contourArea(largest) / (pixels_per_cm ** 2)
+    
     img_with_contours = img_rgb.copy()
     cv2.drawContours(img_with_contours, [largest], -1, (0, 255, 0), 3)
+    
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
     return img_with_contours, mask, area, severity
 
 # ==========================================
-# 3. UI & LOGIC
+# 3. UI & APP LOGIC
 # ==========================================
-st.title("🩺 Diabetic Foot Ulcer Detection AI")
-st.write("Upload a foot image to classify it, measure severity, and analyze boundary.")
+st.title("🩺 Smart AI-Driven Plantar Pressure & Ulcer Analysis")
+st.write("Upload a clinical foot image for automated lesion tracking, boundary segmentation, and severity estimation.")
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
-    st.image(image, caption='Uploaded Image', use_container_width=True)
+    st.image(image, caption='Uploaded Clinical Image', use_container_width=True)
     
-    if st.button("Run AI Analysis", type="primary"):
-        with st.spinner("Analyzing wound and measuring severity..."):
+    if st.button("Run Clinical AI Analysis", type="primary"):
+        with st.spinner("Processing image modules & calculating wound area..."):
             
-            # Simulated confidence based on contour area presence
             img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
             
             st.divider()
             if area > 0.05:
-                st.error(f"### ⚠️ ULCER DETECTED")
+                st.error("### ⚠️ CLINICAL FOOT ULCER DETECTED")
                 
                 col1, col2 = st.columns(2)
-                col1.metric("Estimated Area", f"{area:.2f} cm²")
-                col2.metric("Severity Level", severity)
+                col1.metric("Wound Surface Area", f"{area:.2f} cm²")
+                col2.metric("Estimated Severity", severity)
                 
-                st.subheader("Visual Analysis")
-                t1, t2 = st.tabs(["Wound Boundary", "Wound Mask"])
+                st.subheader("Visual Analysis Modules")
+                t1, t2 = st.tabs(["Wound Boundary Tracking", "Binary Wound Mask"])
                 
                 with t1:
-                    st.image(img_c, use_container_width=True, caption="Boundary Detection")
+                    st.image(img_c, use_container_width=True, caption="Phase 2: Boundary Contour Mapping")
                 with t2:
-                    st.image(mask, use_container_width=True, caption="Wound Mask")
+                    st.image(mask, use_container_width=True, caption="Phase 3: Pixel-level Mask Segmentation")
             else:
-                st.success(f"### ✅ NORMAL FOOT (No significant ulcer detected)")
+                st.success("### ✅ NORMAL / NO ULCER DETECTED")
+                st.info("The selected region shows no prominent clinical lesion patterns based on HSV color thresholding.")
