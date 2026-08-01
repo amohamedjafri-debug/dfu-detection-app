@@ -7,7 +7,7 @@ from PIL import Image
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="Smart AI DFU Detection App",
+    page_title="DFU Detection AI",
     page_icon="🩺",
     layout="centered"
 )
@@ -39,8 +39,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
 # ==========================================
 # 3. UI & APP LOGIC
 # ==========================================
-st.title("🩺 Smart AI-Driven Plantar Pressure & Ulcer Analysis")
-st.write("Upload or capture a clinical foot image for automated lesion tracking.")
+st.title("🩺 Diabetic Foot Ulcer Detection AI")
+st.write("Upload or capture a clinical foot image for automated lesion tracking and boundary segmentation.")
 
 # Camera and Upload Options
 app_mode = st.radio("Choose Image Source:", ["📸 Use Mobile Camera", "📂 Upload from Gallery"])
@@ -55,7 +55,6 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
     
-    # Hide the duplicated image if camera is used (since camera input already shows it)
     if app_mode == "📂 Upload from Gallery":
         st.image(image, caption='Uploaded Clinical Image', use_container_width=True)
     
