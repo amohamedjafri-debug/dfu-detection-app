@@ -4,6 +4,7 @@ import cv2
 from PIL import Image
 import io
 from reportlab.lib.pagesizes import letter
+from reportlab.pdfgenarias import canvas if False else reportlab_pdf_canvas = None # placeholder
 from reportlab.pdfgen import canvas
 
 # ==========================================
@@ -14,6 +15,7 @@ st.set_page_config(
     page_icon="🩺",
     layout="centered"
 )
+
 # ==========================================
 # 2. ANALYSIS & MEASUREMENT FUNCTIONS
 # ==========================================
@@ -48,7 +50,7 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
     
     # Title & Header
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, height - 50, "DFU-Vision AI: Clinical Assessment Report")
+    c.drawString(50, height - 50, "DFU Detection AI: Clinical Assessment Report")
     
     c.setFont("Helvetica", 12)
     c.drawString(50, height - 80, f"Patient Name / ID: {patient_name}")
@@ -77,7 +79,7 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
         y_pos -= 22
         
     c.setFont("Helvetica-Oblique", 9)
-    c.drawString(50, 50, "Generated via DFU-Vision AI: Automated Multi-Module Morphometric Analysis Suite")
+    c.drawString(50, 50, "Generated via DFU Detection AI: Automated Multi-Module Morphometric Analysis Suite")
     
     c.save()
     buffer.seek(0)
@@ -86,7 +88,7 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
 # ==========================================
 # 4. STREAMLIT UI LAYOUT
 # ==========================================
-st.title("🩺 DFU-Vision AI")
+st.title("🩺 DFU Detection AI")
 st.markdown("**Automated Multi-Module Diabetic Foot Ulcer Detection & Morphometric Analysis Suite**")
 st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate updated clinical history, and generate formal PDF reports.")
 
@@ -95,7 +97,6 @@ st.sidebar.header("📋 Patient Clinical Metadata")
 patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
 diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
 
-# New history inputs added here
 has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
 hba1c_high = st.sidebar.checkbox("High Blood Sugar / HbA1c > 8.0%")
 
@@ -103,7 +104,7 @@ has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
 is_smoker = st.sidebar.checkbox("History of Smoking")
 previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional)", min_value=0.0, value=0.0)
 
-# Calculate Risk Score including the 2 new parameters
+# Calculate Risk Score including history parameters
 risk_score = min(10, int(diabetes_duration / 3) + (3 if has_previous_ulcer else 0) + (2 if hba1c_high else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
 
 # Input Mode: Live Camera or Gallery
