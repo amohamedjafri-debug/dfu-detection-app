@@ -14,7 +14,6 @@ st.set_page_config(
     page_icon="🩺",
     layout="centered"
 )
-
 # ==========================================
 # 2. ANALYSIS & MEASUREMENT FUNCTIONS
 # ==========================================
