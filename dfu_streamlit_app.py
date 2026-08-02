@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import io
+from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -42,7 +43,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
-def generate_pdf_report(patient_name, blood_glucose, area, severity, risk_score, recommendations):
+def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recommendations):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -54,7 +55,7 @@ def generate_pdf_report(patient_name, blood_glucose, area, severity, risk_score,
     c.setFont("Helvetica", 12)
     c.drawString(50, height - 80, f"Patient Name / ID: {patient_name}")
     c.drawString(50, height - 100, f"Blood Glucose Level: {blood_glucose} mg/dL")
-    c.drawString(50, height - 120, f"Assessment Date: Live AI Analysis")
+    c.drawString(50, height - 120, f"Assessment Timestamp: {upload_timestamp}")
     
     # Divider line
     c.line(50, height - 135, width - 50, height - 135)
@@ -97,7 +98,6 @@ st.sidebar.header("📋 Patient Clinical Metadata")
 patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
 diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
 
-# Doctor asking patient's blood glucose level
 blood_glucose = st.sidebar.number_input("Blood Glucose Level (mg/dL)", min_value=50, max_value=600, value=140, step=5)
 
 has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
@@ -105,7 +105,7 @@ has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
 is_smoker = st.sidebar.checkbox("History of Smoking")
 previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional)", min_value=0.0, value=0.0)
 
-# Calculate Risk Score based on Blood Glucose & other factors
+# Calculate Risk Score
 glucose_risk = 3 if blood_glucose > 200 else (1 if blood_glucose > 140 else 0)
 risk_score = min(10, int(diabetes_duration / 3) + glucose_risk + (3 if has_previous_ulcer else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
 
@@ -114,10 +114,13 @@ app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Uploa
 uploaded_file = st.camera_input("Take a picture of the foot ulcer") if app_mode == "📷 Live Phone Camera" else st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # Capture exact timestamp when the image is uploaded/processed
+    upload_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
     
-    st.image(image, caption='Selected Clinical Image', use_container_width=True)
+    st.image(image, caption=f'Selected Clinical Image (Uploaded at: {upload_timestamp})', use_container_width=True)
     
     with st.spinner("Executing multi-module clinical analysis pipeline..."):
         img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
@@ -131,7 +134,7 @@ if uploaded_file is not None:
             col2.metric("Estimated Severity", severity)
             col3.metric("Clinical Risk Score", f"{risk_score}/10")
             
-            st.info(f"🩸 Recorded Blood Glucose: **{blood_glucose} mg/dL**")
+            st.info(f"🩸 Recorded Blood Glucose: **{blood_glucose} mg/dL** | ⏱️ Analysis Time: **{upload_timestamp}**")
             
             # Healing progress tracking if previous area exists
             if previous_area > 0:
@@ -161,7 +164,7 @@ if uploaded_file is not None:
                 
             st.divider()
             st.subheader("📄 Download Official Clinical Report")
-            pdf_buffer = generate_pdf_report(patient_name, blood_glucose, area, severity, risk_score, recs)
+            pdf_buffer = generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recs)
             
             st.download_button(
                 label="📥 Download PDF Assessment Report",
