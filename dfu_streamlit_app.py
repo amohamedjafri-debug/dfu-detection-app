@@ -42,7 +42,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
-def generate_pdf_report(patient_name, area, severity, risk_score, recommendations):
+def generate_pdf_report(patient_name, blood_glucose, area, severity, risk_score, recommendations):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -53,26 +53,27 @@ def generate_pdf_report(patient_name, area, severity, risk_score, recommendation
     
     c.setFont("Helvetica", 12)
     c.drawString(50, height - 80, f"Patient Name / ID: {patient_name}")
-    c.drawString(50, height - 100, f"Assessment Date: Live AI Analysis")
+    c.drawString(50, height - 100, f"Blood Glucose Level: {blood_glucose} mg/dL")
+    c.drawString(50, height - 120, f"Assessment Date: Live AI Analysis")
     
     # Divider line
-    c.line(50, height - 115, width - 50, height - 115)
+    c.line(50, height - 135, width - 50, height - 135)
     
     # Metrics Section
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 145, "Wound Measurements & Classification:")
+    c.drawString(50, height - 165, "Wound Measurements & Classification:")
     
     c.setFont("Helvetica", 12)
-    c.drawString(70, height - 170, f"- Calculated Wound Surface Area: {area:.2f} cm²")
-    c.drawString(70, height - 195, f"- Estimated Clinical Severity: {severity}")
-    c.drawString(70, height - 220, f"- Combined Clinical Risk Score: {risk_score} / 10")
+    c.drawString(70, height - 190, f"- Calculated Wound Surface Area: {area:.2f} cm²")
+    c.drawString(70, height - 215, f"- Estimated Clinical Severity: {severity}")
+    c.drawString(70, height - 240, f"- Combined Clinical Risk Score: {risk_score} / 10")
     
     # Recommendations Section
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 260, "Clinical Recommendations & Next Steps:")
+    c.drawString(50, height - 280, "Clinical Recommendations & Next Steps:")
     
     c.setFont("Helvetica", 11)
-    y_pos = height - 285
+    y_pos = height - 305
     for rec in recommendations:
         c.drawString(70, y_pos, f"• {rec}")
         y_pos -= 22
@@ -96,15 +97,17 @@ st.sidebar.header("📋 Patient Clinical Metadata")
 patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
 diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
 
-has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
-hba1c_high = st.sidebar.checkbox("High Blood Sugar / HbA1c > 8.0%")
+# Doctor asking patient's blood glucose level
+blood_glucose = st.sidebar.number_input("Blood Glucose Level (mg/dL)", min_value=50, max_value=600, value=140, step=5)
 
+has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
 has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
 is_smoker = st.sidebar.checkbox("History of Smoking")
 previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional)", min_value=0.0, value=0.0)
 
-# Calculate Risk Score including history parameters
-risk_score = min(10, int(diabetes_duration / 3) + (3 if has_previous_ulcer else 0) + (2 if hba1c_high else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
+# Calculate Risk Score based on Blood Glucose & other factors
+glucose_risk = 3 if blood_glucose > 200 else (1 if blood_glucose > 140 else 0)
+risk_score = min(10, int(diabetes_duration / 3) + glucose_risk + (3 if has_previous_ulcer else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
 
 # Input Mode: Live Camera or Gallery
 app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Upload from Gallery"])
@@ -127,6 +130,8 @@ if uploaded_file is not None:
             col1.metric("Wound Surface Area", f"{area:.2f} cm²")
             col2.metric("Estimated Severity", severity)
             col3.metric("Clinical Risk Score", f"{risk_score}/10")
+            
+            st.info(f"🩸 Recorded Blood Glucose: **{blood_glucose} mg/dL**")
             
             # Healing progress tracking if previous area exists
             if previous_area > 0:
@@ -156,7 +161,7 @@ if uploaded_file is not None:
                 
             st.divider()
             st.subheader("📄 Download Official Clinical Report")
-            pdf_buffer = generate_pdf_report(patient_name, area, severity, risk_score, recs)
+            pdf_buffer = generate_pdf_report(patient_name, blood_glucose, area, severity, risk_score, recs)
             
             st.download_button(
                 label="📥 Download PDF Assessment Report",
