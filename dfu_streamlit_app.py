@@ -23,41 +23,37 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     try:
         img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         
-        # Red ranges for active ulcers and inflammation
-        lower_red1 = np.array([0, 70, 50])
+        # 1. Strict Red & Inflammation Ranges
+        lower_red1 = np.array([0, 80, 50])
         upper_red1 = np.array([12, 255, 230])
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         
-        lower_red2 = np.array([168, 70, 50])
+        lower_red2 = np.array([168, 80, 50])
         upper_red2 = np.array([180, 255, 230])
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
         
-        # Yellow / Slough tissue range (Crucial for 113.jpg type wounds)
-        lower_yellow = np.array([15, 30, 50])
-        upper_yellow = np.array([35, 255, 240])
-        mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
-        
-        # Dark / Necrotic tissue range
+        # 2. Deep Necrotic / Core Range
         lower_necrotic = np.array([0, 0, 0])
-        upper_necrotic = np.array([180, 50, 60])
+        upper_necrotic = np.array([180, 45, 55])
         mask_necrotic = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
         
-        # Combine all masks (Red + Yellow Slough + Necrotic)
         red_mask = cv2.bitwise_or(mask1, mask2)
-        tissue_mask = cv2.bitwise_or(red_mask, mask_yellow)
-        final_mask = cv2.bitwise_or(tissue_mask, mask_necrotic)
+        final_mask = cv2.bitwise_or(red_mask, mask_necrotic)
         
-        # Check total non-zero pixel percentage
+        # 3. Dry Skin / Flaky Peel Guard (Using local variance / texture check)
+        # Normal dry skin with cracks has high edge density but lacks a true deep cavity/granulation bed.
+        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+        
+        # If texture has too many fine lines/cracks (high variance) but very low true red/flesh volume, block it!
         total_pixels = final_mask.shape[0] * final_mask.shape[1]
         wound_pixel_count = cv2.countNonZero(final_mask)
         redness_percentage = (wound_pixel_count / total_pixels) * 100
         
-        # Relaxed percentage guard to accommodate yellow/slough beds
-        if redness_percentage < 1.0:
+        if redness_percentage < 1.8 or laplacian_var > 350: # Blocks dry cracked skin patterns
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
-        # Morphological operations to clean noise
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         final_mask = cv2.morphologyEx(final_mask, cv2.MORPH_CLOSE, kernel)
         
@@ -68,12 +64,11 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         largest = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(largest)
         
-        if contour_area < 1000:
+        if contour_area < 1200:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         area = contour_area / (pixels_per_cm ** 2)
-        
-        if area < 0.4:
+        if area < 0.5:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         img_with_contours = img_rgb.copy()
@@ -88,7 +83,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
-def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recommendations):
+def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, se
+                        verity, risk_score, recommendations):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
