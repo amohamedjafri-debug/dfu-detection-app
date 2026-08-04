@@ -17,24 +17,24 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (BROADER COLOR RANGE)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (BALANCED SMART MASK)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Broader Red/Pink range to catch light pink/fleshy ulcer centers
-    lower_red1 = np.array([0, 40, 40])
-    upper_red1 = np.array([15, 255, 255])
+    # Stricter saturation to avoid flat normal skin discoloration like in 5.jpg
+    lower_red1 = np.array([0, 70, 40])
+    upper_red1 = np.array([12, 255, 240])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    lower_red2 = np.array([160, 40, 40])
-    upper_red2 = np.array([180, 255, 255])
+    lower_red2 = np.array([168, 70, 40])
+    upper_red2 = np.array([180, 255, 240])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Necrotic/Dark tissue mask
-    lower_necrotic = np.array([0, 0, 0])
-    upper_necrotic = np.array([180, 255, 80])
+    # Dark/Necrotic tissue mask with tighter brightness limit
+    lower_necrotic = np.array([0, 0, 10])
+    upper_necrotic = np.array([180, 50, 65])
     mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
     
     # Combine masks
@@ -48,8 +48,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Lowered threshold slightly so it captures the whole wound contour easily
-    if contour_area < 300:
+    # Higher minimum area threshold (700) to completely ignore background skin shading
+    if contour_area < 700:
         return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
@@ -59,7 +59,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
     return img_with_contours, final_mask, area, severity
-
+    
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
