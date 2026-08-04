@@ -17,27 +17,27 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (MULTI-MASK: RED + NECROTIC)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (BROADER COLOR RANGE)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Mask 1 & 2: Red/Pink (For inflammation/fresh wet wounds)
-    lower_red1 = np.array([0, 110, 40])
-    upper_red1 = np.array([10, 255, 255])
+    # Broader Red/Pink range to catch light pink/fleshy ulcer centers
+    lower_red1 = np.array([0, 40, 40])
+    upper_red1 = np.array([15, 255, 255])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    lower_red2 = np.array([165, 110, 40])
+    lower_red2 = np.array([160, 40, 40])
     upper_red2 = np.array([180, 255, 255])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Mask 3: Necrotic/Black/Dark Brown (For dry/dead tissue)
+    # Necrotic/Dark tissue mask
     lower_necrotic = np.array([0, 0, 0])
-    upper_necrotic = np.array([180, 255, 70])
+    upper_necrotic = np.array([180, 255, 80])
     mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
     
-    # Combine all masks together
+    # Combine masks
     red_mask = cv2.bitwise_or(mask1, mask2)
     final_mask = cv2.bitwise_or(red_mask, mask3)
     
@@ -48,7 +48,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    if contour_area < 500:
+    # Lowered threshold slightly so it captures the whole wound contour easily
+    if contour_area < 300:
         return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
