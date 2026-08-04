@@ -23,6 +23,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
+    # Red/Brown color range for wound detection
     lower_bound = np.array([0, 50, 20])
     upper_bound = np.array([20, 255, 255])
     mask = cv2.inRange(hsv, lower_bound, upper_bound)
@@ -32,7 +33,13 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         return img_rgb, mask, 0.0, "None"
         
     largest = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(largest) / (pixels_per_cm ** 2)
+    contour_area = cv2.contourArea(largest)
+    
+    # SMART FIX: Normal skin-la varra chinna spots-ai reject panna minimum pixel area check
+    if contour_area < 150:
+        return img_rgb, mask, 0.0, "None"
+        
+    area = contour_area / (pixels_per_cm ** 2)
     
     img_with_contours = img_rgb.copy()
     cv2.drawContours(img_with_contours, [largest], -1, (0, 255, 0), 3)
