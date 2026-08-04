@@ -23,21 +23,20 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Stricter saturation limits (min 100) to ignore normal skin tone variations & flat redness
-    lower_red1 = np.array([0, 100, 50])
-    upper_red1 = np.array([10, 255, 220])
+    # Ultra-strict red ranges to detect ONLY active inflamed wounds/ulcers, ignoring general skin tones
+    lower_red1 = np.array([0, 130, 70])
+    upper_red1 = np.array([8, 255, 220])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    lower_red2 = np.array([170, 100, 50])
+    lower_red2 = np.array([172, 130, 70])
     upper_red2 = np.array([180, 255, 220])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Strict necrotic / dark wound tissue mask
-    lower_necrotic = np.array([0, 0, 5])
-    upper_necrotic = np.array([180, 40, 50])
+    # Very dark/necrotic tissue mask with low brightness ceiling
+    lower_necrotic = np.array([0, 0, 0])
+    upper_necrotic = np.array([180, 30, 40])
     mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
     
-    # Combine masks
     red_mask = cv2.bitwise_or(mask1, mask2)
     final_mask = cv2.bitwise_or(red_mask, mask3)
     
@@ -48,8 +47,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Higher minimum area threshold (1000 pixels) to filter out minor shading/lighting spots
-    if contour_area < 1000:
+    # Higher area threshold (1500 pixels) so normal skin creases/patches never trigger it
+    if contour_area < 1500:
         return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
@@ -59,7 +58,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
     return img_with_contours, final_mask, area, severity
-
+    
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
