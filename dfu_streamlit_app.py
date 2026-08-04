@@ -17,18 +17,24 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (ULTRA-STRICT OPCV)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (DUAL MASK LOGIC)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # ULTRA-STRICT Range: 
-    # Saturation increased (130) to ignore light pink skin
-    # Value (Brightness) decreased (160) to ignore bright normal skin
-    lower_bound = np.array([0, 130, 20])
-    upper_bound = np.array([10, 255, 160])
-    mask = cv2.inRange(hsv, lower_bound, upper_bound)
+    # Mask 1: Standard Red/Orange hues (ignoring low saturation normal skin)
+    lower_red1 = np.array([0, 60, 50])
+    upper_red1 = np.array([15, 255, 255])
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    
+    # Mask 2: Deep Pink/Magenta hues (captures the center of wounds like in 28.jpg)
+    lower_red2 = np.array([160, 60, 50])
+    upper_red2 = np.array([180, 255, 255])
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    
+    # Combine both masks
+    mask = cv2.bitwise_or(mask1, mask2)
     
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
@@ -37,8 +43,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Very High threshold (800) so random red skin lines are completely ignored
-    if contour_area < 800:
+    # Balanced threshold to avoid small skin blemishes but catch real ulcers
+    if contour_area < 500:
         return img_rgb, np.zeros_like(mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
