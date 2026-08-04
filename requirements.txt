@@ -3,6 +3,4 @@ numpy
 opencv-python-headless
 pillow
 reportlab
-tensorflow
-keras
-h5py
+tensorflow-cpu
