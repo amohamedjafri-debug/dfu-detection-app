@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (ROBUST & ERROR-FREE)
+# 2. ANALYSIS & MEASUREMENT FUNCTION (DUAL-LAYER GUARD)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     try:
@@ -38,7 +38,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         upper_necrotic = np.array([180, 50, 60])
         mask_necrotic = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
         
-        # Combine masks safely
+        # Combine masks
         red_mask = cv2.bitwise_or(mask1, mask2)
         final_mask = cv2.bitwise_or(red_mask, mask_necrotic)
         
@@ -53,7 +53,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         largest = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(largest)
         
-        # Area threshold to filter out normal skin texture
+        # Strict area threshold to filter out normal skin texture/wrinkles
         if contour_area < 1200:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
@@ -69,7 +69,6 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         return img_with_contours, final_mask, area, severity
         
     except Exception as e:
-        # Fallback in case of any processing glitch
         return img_rgb, np.zeros((100, 100), dtype=np.uint8), 0.0, "None"
 
 # ==========================================
