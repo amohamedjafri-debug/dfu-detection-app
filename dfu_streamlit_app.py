@@ -23,22 +23,33 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Ultra-strict red ranges to detect ONLY active inflamed wounds/ulcers, ignoring general skin tones
-    lower_red1 = np.array([0, 130, 70])
-    upper_red1 = np.array([8, 255, 220])
+    # 1. Active Granulation & Red Inflamed Tissue Range (Balanced Saturation & Value)
+    lower_red1 = np.array([0, 60, 50])
+    upper_red1 = np.array([15, 255, 240])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    lower_red2 = np.array([172, 130, 70])
-    upper_red2 = np.array([180, 255, 220])
+    lower_red2 = np.array([160, 60, 50])
+    upper_red2 = np.array([180, 255, 240])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Very dark/necrotic tissue mask with low brightness ceiling
-    lower_necrotic = np.array([0, 0, 0])
-    upper_necrotic = np.array([180, 30, 40])
-    mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
+    # 2. Slough & Yellowish Wound Bed Tissue Range (For full boundary capture)
+    lower_yellow = np.array([16, 40, 60])
+    upper_yellow = np.array([35, 255, 240])
+    mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
     
+    # 3. Necrotic / Dark Tissue Range
+    lower_necrotic = np.array([0, 0, 5])
+    upper_necrotic = np.array([180, 50, 70])
+    mask_necrotic = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
+    
+    # Combine all active wound tissue masks
     red_mask = cv2.bitwise_or(mask1, mask2)
-    final_mask = cv2.bitwise_or(red_mask, mask3)
+    tissue_mask = cv2.bitwise_or(red_mask, mask_yellow)
+    final_mask = cv2.bitwise_or(tissue_mask, mask_necrotic)
+    
+    # Morphological closing to fill small gaps inside the wound bed
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    final_mask = cv2.morphologyEx(final_mask, cv2.MORPH_CLOSE, kernel)
     
     contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
@@ -47,8 +58,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Higher area threshold (1500 pixels) so normal skin creases/patches never trigger it
-    if contour_area < 1500:
+    # Minimum noise filter threshold
+    if contour_area < 800:
         return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
