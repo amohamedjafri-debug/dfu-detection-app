@@ -83,8 +83,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
-def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, se
-                        verity, risk_score, recommendations):
+def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recommendations):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
