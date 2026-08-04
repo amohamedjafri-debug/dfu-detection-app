@@ -7,11 +7,6 @@ from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-import tensorflow as tf
-from tensorflow.keras.applications.efficientnet import EfficientNetB0, preprocess_input
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from tensorflow.keras.models import Model
-
 # ==========================================
 # 1. PAGE CONFIGURATION
 # ==========================================
@@ -22,53 +17,26 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. LOAD EFFICIENTNET MODEL (CACHED)
-# ==========================================
-@st.cache_resource
-def load_prediction_model():
-    # Base EfficientNetB0 model pre-trained on ImageNet
-    base_model = EfficientNetB0(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-    x = base_model.output
-    x = GlobalAveragePooling2D()(x)
-    x = Dense(128, activation='relu')(x)
-    predictions = Dense(1, activation='sigmoid')(x) # Binary: 0 for Normal, 1 for Ulcer
-    
-    model = Model(inputs=base_model.input, outputs=predictions)
-    return model
-
-ai_model = load_prediction_model()
-
-# ==========================================
-# 3. ANALYSIS & MEASUREMENT FUNCTION WITH EFFICIENTNET & OPENCV
+# 2. ANALYSIS & MEASUREMENT FUNCTION (CLOUD-FRIENDLY & ACCURATE)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     try:
-        # Step A: AI Classification using EfficientNet preprocessing
-        img_resized = Image.fromarray(img_rgb).resize((224, 224))
-        img_array = np.array(img_resized)
-        img_expand = np.expand_dims(img_array, axis=0)
-        img_preprocessed = preprocess_input(img_expand)
-        
-        # Predict probability of being an ulcer
-        prediction_score = ai_model.predict(img_preprocessed)[0][0]
-        
-        # If model classifies as Normal skin (threshold can be tuned)
-        # Note: For demo/un-trained top layers, we also back it up with strict color/texture checks
         img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         
-        # Color masks for real wound tissue (Red + Necrotic)
-        lower_red1 = np.array([0, 90, 50])
+        # Red ranges for active ulcers and inflammation
+        lower_red1 = np.array([0, 80, 50])
         upper_red1 = np.array([12, 255, 230])
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         
-        lower_red2 = np.array([168, 90, 50])
+        lower_red2 = np.array([168, 80, 50])
         upper_red2 = np.array([180, 255, 230])
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
         
+        # Dark / Necrotic tissue range
         lower_necrotic = np.array([0, 0, 0])
-        upper_necrotic = np.array([180, 45, 55])
+        upper_necrotic = np.array([180, 50, 60])
         mask_necrotic = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
         
         red_mask = cv2.bitwise_or(mask1, mask2)
@@ -78,7 +46,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         wound_pixel_count = cv2.countNonZero(final_mask)
         redness_percentage = (wound_pixel_count / total_pixels) * 100
         
-        # Strict dual check: If redness/wound pixels are too low, force Normal
+        # Guard against normal skin & minor textures
         if redness_percentage < 1.5:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
@@ -109,7 +77,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         return img_rgb, np.zeros((100, 100), dtype=np.uint8), 0.0, "None"
 
 # ==========================================
-# 4. PDF REPORT GENERATOR FUNCTION
+# 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
 def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recommendations):
     buffer = io.BytesIO()
@@ -151,11 +119,11 @@ def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, sev
     return buffer
 
 # ==========================================
-# 5. STREAMLIT UI LAYOUT
+# 4. STREAMLIT UI LAYOUT
 # ==========================================
 st.title("🩺 DFU Detection AI")
 st.markdown("**Automated Multi-Module Diabetic Foot Ulcer Detection & Morphometric Analysis Suite**")
-st.markdown("*Powered by EfficientNet Deep Learning Feature Extraction & Morphometric Analysis.*")
+st.markdown("*A core visual diagnostic module for the Smart AI driven plantar pressure analysis pipeline.*")
 st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate clinical history, and generate formal PDF reports.")
 
 st.sidebar.header("📋 Patient Clinical Metadata")
@@ -180,9 +148,9 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
     img_rgb_original = np.array(image)
     
-    st.image(image, caption=f'Selected Clinical Image (Uploaded at: {upload_timestamp})', use_container_width=True)
+    st.image(image, caption=f'Selected Clinical Image (Uploaded at: {upload_timestamp})', width="stretch")
     
-    with st.spinner("Running EfficientNet feature extraction & clinical analysis pipeline..."):
+    with st.spinner("Executing multi-module clinical analysis pipeline..."):
         img_c, mask, area, severity = segment_and_measure_ulcer(img_rgb_original)
         
         st.divider()
@@ -207,9 +175,9 @@ if uploaded_file is not None:
             st.subheader("Visual Analysis Modules")
             t1, t2 = st.tabs(["Wound Boundary Tracking", "Binary Wound Mask"])
             with t1:
-                st.image(img_c, use_container_width=True, caption="Phase 2: Boundary Contour Mapping")
+                st.image(img_c, width="stretch", caption="Phase 2: Boundary Contour Mapping")
             with t2:
-                st.image(mask, use_container_width=True, caption="Phase 3: Pixel-level Mask Segmentation")
+                st.image(mask, width="stretch", caption="Phase 3: Pixel-level Mask Segmentation")
                 
             recs = [
                 "Offload pressure immediately using specialized therapeutic footwear.",
@@ -232,4 +200,4 @@ if uploaded_file is not None:
             )
         else:
             st.success("### ✅ NORMAL / NO ULCER DETECTED")
-            st.info("The selected region shows no prominent clinical lesion patterns based on deep feature analysis.")
+            st.info("The selected region shows no prominent clinical lesion patterns based on morphometric analysis.")
