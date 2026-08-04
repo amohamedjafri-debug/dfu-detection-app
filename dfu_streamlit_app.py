@@ -17,19 +17,20 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (DUAL MASK LOGIC)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (HIGH SATURATION LOGIC)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Mask 1: Standard Red/Orange hues (ignoring low saturation normal skin)
-    lower_red1 = np.array([0, 60, 50])
-    upper_red1 = np.array([15, 255, 255])
+    # Mask 1: Standard Red hues with HIGH Saturation (S > 110)
+    # This ignores natural brownish/reddish skin tones and only catches extreme reds
+    lower_red1 = np.array([0, 110, 40])
+    upper_red1 = np.array([10, 255, 255])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    # Mask 2: Deep Pink/Magenta hues (captures the center of wounds like in 28.jpg)
-    lower_red2 = np.array([160, 60, 50])
+    # Mask 2: Deep Pink/Magenta hues with HIGH Saturation
+    lower_red2 = np.array([165, 110, 40])
     upper_red2 = np.array([180, 255, 255])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
@@ -43,8 +44,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Balanced threshold to avoid small skin blemishes but catch real ulcers
-    if contour_area < 500:
+    # Increased minimum threshold to avoid small skin texture lines in Phase 2 boundary mapping
+    if contour_area < 600:
         return img_rgb, np.zeros_like(mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
