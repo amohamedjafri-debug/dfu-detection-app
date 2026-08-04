@@ -17,36 +17,41 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (HIGH SATURATION LOGIC)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (MULTI-MASK: RED + NECROTIC)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Mask 1: Standard Red hues with HIGH Saturation (S > 110)
-    # This ignores natural brownish/reddish skin tones and only catches extreme reds
+    # Mask 1 & 2: Red/Pink (For inflammation/fresh wet wounds)
     lower_red1 = np.array([0, 110, 40])
     upper_red1 = np.array([10, 255, 255])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     
-    # Mask 2: Deep Pink/Magenta hues with HIGH Saturation
     lower_red2 = np.array([165, 110, 40])
     upper_red2 = np.array([180, 255, 255])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Combine both masks
-    mask = cv2.bitwise_or(mask1, mask2)
+    # Mask 3: Necrotic/Black/Dark Brown (For dry/dead tissue like in 15.jpg)
+    # We look for very low brightness (Value < 70) to catch the dark center
+    lower_necrotic = np.array([0, 0, 0])
+    upper_necrotic = np.array([180, 255, 70])
+    mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
     
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Combine all masks together
+    red_mask = cv2.bitwise_or(mask1, mask2)
+    final_mask = cv2.bitwise_or(red_mask, mask3)
+    
+    contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return img_rgb, np.zeros_like(mask), 0.0, "None"
+        return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Increased minimum threshold to avoid small skin texture lines in Phase 2 boundary mapping
-    if contour_area < 600:
-        return img_rgb, np.zeros_like(mask), 0.0, "None"
+    # Kept threshold at 500 to catch these specific dark lesions effectively
+    if contour_area < 500:
+        return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
     
@@ -54,8 +59,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     cv2.drawContours(img_with_contours, [largest], -1, (0, 255, 0), 3)
     
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
-    return img_with_contours, mask, area, severity
-
+    return img_with_contours, final_mask, area, severity
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
