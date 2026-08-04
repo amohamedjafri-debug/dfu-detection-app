@@ -6,7 +6,6 @@ import io
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from tensorflow.keras.models import load_model
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -18,57 +17,44 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. LOAD DEEP LEARNING MODEL (.KERAS)
-# ==========================================
-@st.cache_resource
-def load_trained_model():
-    # GitHub repository-la irukkura unga exact .keras file name
-    model = load_model('dfu_efficientnetb0_model.keras')
-    return model
-
-ai_model = load_trained_model()
-
-# ==========================================
-# 3. ANALYSIS & MEASUREMENT FUNCTIONS
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (SMART OPCV)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
-    # 1. Resize image to 224x224 as required by EfficientNetB0
-    img_resized = cv2.resize(img_rgb, (224, 224))
-    img_array = np.array(img_resized) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+    img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # 2. Predict using the .keras model
-    prediction = ai_model.predict(img_array)[0][0]
+    # Strict color range for real ulcer/wound detection
+    lower_bound = np.array([0, 70, 20])
+    upper_bound = np.array([15, 255, 200])
+    mask = cv2.inRange(hsv, lower_bound, upper_bound)
     
-    # Create a mask for visual tabs
-    mask = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
-    _, mask = cv2.threshold(mask, 200, 255, cv2.THRESH_BINARY_INV)
-    
-    # 3. Decision threshold (0.5)
-    if prediction > 0.5:
-        # Ulcer Detected case
-        area = 3.5  # Estimated area value for display
-        severity = "Moderate" if area < 5.0 else "Severe"
-        
-        # Draw a simulated bounding box/contour on image for display
-        img_with_contours = img_rgb.copy()
-        h, w, _ = img_with_contours.shape
-        cv2.rectangle(img_with_contours, (int(w*0.3), int(h*0.3)), (int(w*0.7), int(h*0.7)), (0, 255, 0), 3)
-        
-        return img_with_contours, mask, area, severity
-    else:
-        # Normal Foot case
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
         return img_rgb, mask, 0.0, "None"
+        
+    largest = max(contours, key=cv2.contourArea)
+    contour_area = cv2.contourArea(largest)
     
+    # High threshold to completely ignore normal skin blemishes or minor shades
+    if contour_area < 400:
+        return img_rgb, mask, 0.0, "None"
+        
+    area = contour_area / (pixels_per_cm ** 2)
+    
+    img_with_contours = img_rgb.copy()
+    cv2.drawContours(img_with_contours, [largest], -1, (0, 255, 0), 3)
+    
+    severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
+    return img_with_contours, mask, area, severity
+
 # ==========================================
-# 4. PDF REPORT GENERATOR FUNCTION
+# 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
 def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, severity, risk_score, recommendations):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     
-    # Title & Header
     c.setFont("Helvetica-Bold", 18)
     c.drawString(50, height - 50, "DFU Detection AI: Clinical Assessment Report")
     
@@ -77,10 +63,8 @@ def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, sev
     c.drawString(50, height - 100, f"Blood Glucose Level: {blood_glucose} mg/dL")
     c.drawString(50, height - 120, f"Assessment Timestamp: {upload_timestamp}")
     
-    # Divider line
     c.line(50, height - 135, width - 50, height - 135)
     
-    # Metrics Section
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, height - 165, "Wound Measurements & Classification:")
     
@@ -89,7 +73,6 @@ def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, sev
     c.drawString(70, height - 215, f"- Estimated Clinical Severity: {severity}")
     c.drawString(70, height - 240, f"- Combined Clinical Risk Score: {risk_score} / 10")
     
-    # Recommendations Section
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, height - 280, "Clinical Recommendations & Next Steps:")
     
@@ -107,17 +90,15 @@ def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, sev
     return buffer
 
 # ==========================================
-# 5. STREAMLIT UI LAYOUT
+# 4. STREAMLIT UI LAYOUT
 # ==========================================
 st.title("🩺 DFU Detection AI")
 st.markdown("**Automated Multi-Module Diabetic Foot Ulcer Detection & Morphometric Analysis Suite**")
 st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate updated clinical history, and generate formal PDF reports.")
 
-# Sidebar for Patient Metadata & History
 st.sidebar.header("📋 Patient Clinical Metadata")
 patient_name = st.sidebar.text_input("Patient Name / ID", "Patient_001")
 diabetes_duration = st.sidebar.slider("Diabetes Duration (Years)", 0, 30, 5)
-
 blood_glucose = st.sidebar.number_input("Blood Glucose Level (mg/dL)", min_value=50, max_value=600, value=140, step=5)
 
 has_previous_ulcer = st.sidebar.checkbox("History of Previous Foot Ulcer / Surgery")
@@ -125,16 +106,13 @@ has_neuropathy = st.sidebar.checkbox("Symptoms of Neuropathy / Numbness")
 is_smoker = st.sidebar.checkbox("History of Smoking")
 previous_area = st.sidebar.number_input("Previous Wound Area (cm² - Optional)", min_value=0.0, value=0.0)
 
-# Calculate Risk Score
 glucose_risk = 3 if blood_glucose > 200 else (1 if blood_glucose > 140 else 0)
 risk_score = min(10, int(diabetes_duration / 3) + glucose_risk + (3 if has_previous_ulcer else 0) + (2 if has_neuropathy else 0) + (1 if is_smoker else 0))
 
-# Input Mode: Live Camera or Gallery
 app_mode = st.radio("Choose Input Mode:", ["📷 Live Phone Camera", "📁 Upload from Gallery"])
 uploaded_file = st.camera_input("Take a picture of the foot ulcer") if app_mode == "📷 Live Phone Camera" else st.file_uploader("Choose a clinical foot image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Capture exact timestamp when the image is uploaded/processed
     upload_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     image = Image.open(uploaded_file).convert('RGB')
@@ -156,7 +134,6 @@ if uploaded_file is not None:
             
             st.info(f"🩸 Recorded Blood Glucose: **{blood_glucose} mg/dL** | ⏱️ Analysis Time: **{upload_timestamp}**")
             
-            # Healing progress tracking if previous area exists
             if previous_area > 0:
                 diff = previous_area - area
                 pct = (diff / previous_area) * 100
@@ -172,7 +149,6 @@ if uploaded_file is not None:
             with t2:
                 st.image(mask, use_container_width=True, caption="Phase 3: Pixel-level Mask Segmentation")
                 
-            # Recommendations logic
             recs = [
                 "Offload pressure immediately using specialized therapeutic footwear.",
                 "Maintain strict glycemic control and monitor daily blood glucose levels.",
@@ -194,4 +170,4 @@ if uploaded_file is not None:
             )
         else:
             st.success("### ✅ NORMAL / NO ULCER DETECTED")
-            st.info("The selected region shows no prominent clinical lesion patterns based on EfficientNetB0 classification model.")
+            st.info("The selected region shows no prominent clinical lesion patterns based on morphometric analysis.")
