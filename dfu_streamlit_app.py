@@ -1,5 +1,4 @@
 import streamlit as st
-import tensorflow as tf
 import os
 import gdown
 from PIL import Image
