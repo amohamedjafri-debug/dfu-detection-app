@@ -3,4 +3,3 @@ numpy
 pillow
 opencv-python-headless
 reportlab
-tensorflow-cpu
