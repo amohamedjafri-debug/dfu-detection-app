@@ -21,19 +21,11 @@ st.set_page_config(
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-    
-    # 1. Skin Tone & Brightness Check (To reject normal feet completely)
-    # Convert to YCrCb to check skin pixels
-    ycrcb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YCrCb)
-    skin_mask = cv2.inRange(ycrcb, np.array([0, 133, 77]), np.array([255, 173, 127]))
-    skin_pixel_count = np.sum(skin_mask > 0)
-    total_pixel_count = skin_mask.shape[0] * skin_mask.shape[1]
-    
-    # If more than 30% of the image is normal skin tone and no distinct deep wound, treat as normal
-    # 2. HSV Wound Detection Mask
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    lower_bound = np.array([0, 70, 20])   # Strict lower bound for real wounds
-    upper_bound = np.array([15, 255, 200]) # Strict upper bound to avoid skin confusion
+    
+    # Very strict mask for deep wound/ulcer (Dark red, broken skin colors only)
+    lower_bound = np.array([0, 90, 20])
+    upper_bound = np.array([10, 255, 180])
     mask = cv2.inRange(hsv, lower_bound, upper_bound)
     
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -43,8 +35,8 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Strict Area Check: Real ulcer must be large enough and have distinct redness ratio
-    if contour_area < 300: # Increased threshold to filter out normal skin red spots
+    # High pixel threshold so normal skin textures or minor spots are completely ignored
+    if contour_area < 500:
         return img_rgb, mask, 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
@@ -54,7 +46,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
     return img_with_contours, mask, area, severity
-
+    
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
