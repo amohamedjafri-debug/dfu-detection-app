@@ -17,41 +17,41 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTION (WITH REDNESS GUARD)
+# 2. ANALYSIS & MEASUREMENT FUNCTION (ULTRA-STRICT FALSE POSITIVE GUARD)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     try:
         img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
         
-        # Strict red ranges for active ulcers and inflammation
-        lower_red1 = np.array([0, 90, 50])
-        upper_red1 = np.array([12, 255, 230])
+        # Ultra-strict red ranges for active open wounds / inflammation
+        lower_red1 = np.array([0, 110, 60])
+        upper_red1 = np.array([10, 255, 230])
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         
-        lower_red2 = np.array([168, 90, 50])
+        lower_red2 = np.array([170, 110, 60])
         upper_red2 = np.array([180, 255, 230])
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
         
-        # Dark / Necrotic tissue range
+        # Dark / Necrotic wound tissue range
         lower_necrotic = np.array([0, 0, 0])
-        upper_necrotic = np.array([180, 50, 55])
+        upper_necrotic = np.array([180, 45, 50])
         mask_necrotic = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
         
         # Combine masks
         red_mask = cv2.bitwise_or(mask1, mask2)
         final_mask = cv2.bitwise_or(red_mask, mask_necrotic)
         
-        # Check total non-zero (red/wound) pixels percentage in the entire image
+        # Check total non-zero pixel percentage in the entire image
         total_pixels = final_mask.shape[0] * final_mask.shape[1]
         wound_pixel_count = cv2.countNonZero(final_mask)
         redness_percentage = (wound_pixel_count / total_pixels) * 100
         
-        # If redness/wound range is too low (less than 1.5%), treat as normal skin!
-        if redness_percentage < 1.5:
+        # Strict Guard: If wound/redness content is less than 2.0% of the image, treat as normal skin!
+        if redness_percentage < 2.0:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
-        # Morphological operations to clear noise
+        # Morphological operations to clean noise
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         final_mask = cv2.morphologyEx(final_mask, cv2.MORPH_CLOSE, kernel)
         
@@ -62,13 +62,13 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         largest = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(largest)
         
-        # Strict area threshold to filter out normal skin texture/wrinkles
-        if contour_area < 1200:
+        # High area threshold to filter out skin creases, scratches, or minor texture spots
+        if contour_area < 1500:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         area = contour_area / (pixels_per_cm ** 2)
         
-        if area < 0.5: # Minimum threshold for clinical consideration
+        if area < 0.6: # Minimum physical area threshold for clinical ulcers
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         img_with_contours = img_rgb.copy()
