@@ -42,6 +42,15 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         red_mask = cv2.bitwise_or(mask1, mask2)
         final_mask = cv2.bitwise_or(red_mask, mask_necrotic)
         
+        # Check total non-zero (red/wound) pixels in the entire image
+        total_pixels = final_mask.shape[0] * final_mask.shape[1]
+        wound_pixel_count = cv2.countNonZero(final_mask)
+        redness_percentage = (wound_pixel_count / total_pixels) * 100
+        
+        # If redness/wound range is too low (e.g., less than 1.5% of the image), treat as normal!
+        if redness_percentage < 1.5:
+            return img_rgb, np.zeros_like(final_mask), 0.0, "None"
+        
         # Morphological operations to clear noise
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         final_mask = cv2.morphologyEx(final_mask, cv2.MORPH_CLOSE, kernel)
@@ -53,13 +62,12 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         largest = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(largest)
         
-        # Strict area threshold to filter out normal skin texture/wrinkles
         if contour_area < 1200:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         area = contour_area / (pixels_per_cm ** 2)
         
-        if area < 0.5: # Minimum threshold for clinical consideration
+        if area < 0.5:
             return img_rgb, np.zeros_like(final_mask), 0.0, "None"
             
         img_with_contours = img_rgb.copy()
@@ -70,7 +78,6 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
         
     except Exception as e:
         return img_rgb, np.zeros((100, 100), dtype=np.uint8), 0.0, "None"
-
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
