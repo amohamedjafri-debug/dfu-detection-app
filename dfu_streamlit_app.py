@@ -17,27 +17,29 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. ANALYSIS & MEASUREMENT FUNCTIONS (SMART OPCV)
+# 2. ANALYSIS & MEASUREMENT FUNCTIONS (ULTRA-STRICT OPCV)
 # ==========================================
 def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     
-    # Strict color range for real ulcer/wound detection
-    lower_bound = np.array([0, 70, 20])
-    upper_bound = np.array([15, 255, 200])
+    # ULTRA-STRICT Range: 
+    # Saturation increased (130) to ignore light pink skin
+    # Value (Brightness) decreased (160) to ignore bright normal skin
+    lower_bound = np.array([0, 130, 20])
+    upper_bound = np.array([10, 255, 160])
     mask = cv2.inRange(hsv, lower_bound, upper_bound)
     
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return img_rgb, mask, 0.0, "None"
+        return img_rgb, np.zeros_like(mask), 0.0, "None"
         
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # High threshold to completely ignore normal skin blemishes or minor shades
-    if contour_area < 400:
-        return img_rgb, mask, 0.0, "None"
+    # Very High threshold (800) so random red skin lines are completely ignored
+    if contour_area < 800:
+        return img_rgb, np.zeros_like(mask), 0.0, "None"
         
     area = contour_area / (pixels_per_cm ** 2)
     
