@@ -32,8 +32,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     upper_red2 = np.array([180, 255, 255])
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     
-    # Mask 3: Necrotic/Black/Dark Brown (For dry/dead tissue like in 15.jpg)
-    # We look for very low brightness (Value < 70) to catch the dark center
+    # Mask 3: Necrotic/Black/Dark Brown (For dry/dead tissue)
     lower_necrotic = np.array([0, 0, 0])
     upper_necrotic = np.array([180, 255, 70])
     mask3 = cv2.inRange(hsv, lower_necrotic, upper_necrotic)
@@ -49,7 +48,6 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     largest = max(contours, key=cv2.contourArea)
     contour_area = cv2.contourArea(largest)
     
-    # Kept threshold at 500 to catch these specific dark lesions effectively
     if contour_area < 500:
         return img_rgb, np.zeros_like(final_mask), 0.0, "None"
         
@@ -60,6 +58,7 @@ def segment_and_measure_ulcer(img_rgb, pixels_per_cm=100):
     
     severity = "Mild" if area < 2.0 else "Moderate" if area < 5.0 else "Severe"
     return img_with_contours, final_mask, area, severity
+
 # ==========================================
 # 3. PDF REPORT GENERATOR FUNCTION
 # ==========================================
@@ -107,6 +106,7 @@ def generate_pdf_report(patient_name, blood_glucose, upload_timestamp, area, sev
 # ==========================================
 st.title("🩺 DFU Detection AI")
 st.markdown("**Automated Multi-Module Diabetic Foot Ulcer Detection & Morphometric Analysis Suite**")
+st.markdown("*A core visual diagnostic module for the Smart AI driven plantar pressure analysis pipeline.*")
 st.write("Capture or upload clinical foot images, compute ulcer measurements, evaluate updated clinical history, and generate formal PDF reports.")
 
 st.sidebar.header("📋 Patient Clinical Metadata")
